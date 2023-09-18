@@ -2,12 +2,13 @@ package semp
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 )
 
+type NotifyFunc func()
+
 var (
-	ErrCannotAcquire = errors.New("cannot acquire ")
+	ErrCannotAcquire = errors.New("cannot acquire semaphore")
 )
 
 type Semp struct {
@@ -15,14 +16,16 @@ type Semp struct {
 	count  uint32
 	ch     chan bool
 	mu     *sync.Mutex
+	notify NotifyFunc
 }
 
-func New(w uint) *Semp {
+func New(w uint, n NotifyFunc) *Semp {
 	return &Semp{
 		weight: uint32(w),
 		count:  uint32(0),
 		ch:     make(chan bool, 1),
 		mu:     &sync.Mutex{},
+		notify: n,
 	}
 }
 
@@ -31,7 +34,6 @@ func New(w uint) *Semp {
 func (s *Semp) Acquire(i int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	fmt.Println(s.count, s.weight)
 	if s.count+uint32(i) > s.weight {
 		return ErrCannotAcquire
 	}
@@ -45,5 +47,6 @@ func (s *Semp) Release(i int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.count--
+	go s.notify()
 	return nil
 }
